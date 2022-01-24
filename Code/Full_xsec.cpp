@@ -27,8 +27,9 @@ struct params {
 	double e_l[2];
 	double thetaf = 82.0/360*2*pi;
 	double m_f; //= 114.8;
+	double m_g = 2e3; 
 	double S = pow(14e3, 2);
-	double T_f[2], e_q[2], L[2], R[2], lL[2], lR[2];
+	double T_f[2], e_q[2], L[2], R[2], lL[2], lR[2], m_sq[2];
 	double S_ij[2][2], delta[2][2], sL[2][2][2], sR[2][2][2];
 	const PDF* pdf;
 	int pid;
@@ -38,6 +39,60 @@ struct params {
 	double mu_R;
 	double alpha_s;
 };
+
+double f_gamma(double M2, double m_gluino, double m_sq[2]) {
+	double result = 2;
+	ltini();
+	for (int k = 0; k < 2; k++) {
+		double mq2 = pow(m_sq[k], 2);
+		double term1 = (2 * m_gluino - 2 * m_sq[k] + M2) / M2 * (real(B0(M2, mq2, mq2)) - real(B0(0, mq2, mq2)));
+		double term2 = (mq2 - pow(m_gluino, 2)) * real(DB0(0, pow(m_gluino, 2), mq2));
+		double term3 = 2 * (pow(m_gluino, 4) + (M2 - 2 * mq2) * pow(m_gluino, 2) + pow(mq2, 2)) / M2 * real(C0(0, M2, 0, mq2, pow(m_gluino, 2), mq2));
+
+		result += term1 + term2 + term3;
+	}
+	//ltexi();
+	return result;
+}
+
+double susy_cross(double M2, int a, int L_ID, void* p) {
+	struct params* fp = (struct params*)p;
+
+	double susy_xsec = 0;
+	double C_F = 4.0 / 3;
+
+	double beta = sqrt(1 + pow(fp->m_f, 4) / pow(M2, 2) + pow(fp->m_f, 4) / pow(M2, 2) - 2 * (pow(fp->m_f, 2) / M2 + pow(fp->m_f, 2) / M2 + (pow(fp->m_f, 2) * pow(fp->m_f, 2)) / pow(M2, 2)));
+	double frac = pow(fp->alpha, 2) * fp->pi * C_F * pow(beta, 3) / (36 * M2);
+
+	for (int i = 0; i < 1; i++) {
+		for (int j = 0; j < 1; j++) {
+			double term1 = pow(fp->e_q[a], 2) * pow(fp->e_l[L_ID], 2) * fp->delta[i][j];//f_gamma(M2, fp->m_g, fp->m_sq)*pow(fp->e_q[a], 2) * pow(fp->e_l[L_ID], 2) * fp->delta[i][j];
+			double term2 = fp->e_q[a] * fp->e_l[L_ID] * fp->delta[i][j] * (fp->L[a] + fp->R[a]) * (fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]) / (4 * fp->sin_thetaW * (1 - fp->sin_thetaW) * (1 - pow(fp->m_Z, 2) / M2));
+			double term3 = (pow(fp->L[a], 2) + pow(fp->R[a], 2)) * pow((fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]), 2) / (32 * pow(fp->sin_thetaW, 2) * pow((1 - fp->sin_thetaW), 2) * pow((1 - pow(fp->m_Z, 2) / M2), 2));
+
+			susy_xsec += frac * (term1 + term2 + term3);
+		}
+	}
+	return susy_xsec;
+}
+
+double susy_integrand(double x[], size_t dim, void* p) {
+	struct params* fp = (struct params*)p;
+
+	double M2 = x[0] * x[1] * fp->S;
+
+	if (M2 < 4 * pow(fp->m_f, 2)) {
+		return 0;
+	}
+	else {
+		int a = abs((fp->pid)) % 2;
+		int L_ID = fp->lepton_type;
+
+		double partonic_xsec = susy_cross(M2, a, L_ID, fp);
+
+		return (fp->pdf->xfxQ2(fp->pid, x[0], pow(fp->mu_F, 2)) / x[0] * fp->pdf->xfxQ2(-1 * (fp->pid), x[1], pow(fp->mu_F, 2)) / x[1] * partonic_xsec);
+	}
+}
 
 double LO_cross(double M2, int a, int L_ID, void* p) {
 	struct params* fp = (struct params*)p;
@@ -184,6 +239,7 @@ int main(int argc, char* argv[]) {
 		p.R[i] = -2*p.e_q[i] * p.sin_thetaW;
 		p.lL[i] = 2*p.T_f[i] - 2 *p.e_l[i]* p.sin_thetaW;
 		p.lR[i] = -2 *p.e_l[i]*p.sin_thetaW;
+		p.m_sq[i] = 1e3;
 
 		for (int j = 0; j < 2; j++) {
 			for (int k = 0; k < 2; k++) {
@@ -214,12 +270,6 @@ int main(int argc, char* argv[]) {
 	printf("going through params: %.8f & %.8f, %.8f, %.8f\n", p.T_f[1], p.sin_thetaW, p.S, 1/p.alpha);
 
 	vector<int> pids = p.pdf->flavors();
-
-	ltini();
-	complex<double> result = B0(0, 1000000, 1000000);
-
-	//printf("looptools test: %.4f\n + i%.4f", real(result), imag(result));
-	ltexi();
 
 	for (int i = 0; i < 11; i++) {
 		double min_mf = 114.8;
@@ -259,7 +309,7 @@ int main(int argc, char* argv[]) {
 			gsl_monte_function G = { &xa_xb_integrand, dim1, &p };
 			gsl_monte_function H = { &Z_NLO_integrand, dim2, &p };
 			gsl_monte_function plus = { &plus_Integrand, dim2, &p };
-			gsl_monte_function LO = { &LO_integrand, dim1, &p };
+			gsl_monte_function LO = { &susy_integrand, dim1, &p };
 
 			size_t calls = 100000;
 
@@ -310,10 +360,11 @@ int main(int argc, char* argv[]) {
 				{
 					gsl_monte_vegas_integrate(&LO, x0, x1, dim1, calls / 5, r, u,
 						&res_LO, &err_LO);
-					//printf("result = % .6e sigma = % .6e chisq/dof = %.3e\n", res, err, gsl_monte_vegas_chisq(s));
+					printf("result = % .6e sigma = % .6e chisq/dof = %.3e, while term: %.3e\n", res_LO, err_LO, gsl_monte_vegas_chisq(u), fabs(gsl_monte_vegas_chisq(u) - 1));
 				} while (fabs(gsl_monte_vegas_chisq(u) - 1) > 0.5);
 
 				gsl_monte_vegas_free(u);
+				printf("done with pID: %d\n", p.pid);
 			}
 
 			xsec += res1 + res2;// +res_plus;
@@ -325,7 +376,7 @@ int main(int argc, char* argv[]) {
 		xsec *= 0.38938e-3;
 		xsec_LO *= 0.38938e-3;
 		printf("Final NLO res after summing up Parton ID's: %.5e with stau mass: %.2f\n", xsec, p.m_f);
-		printf("Final LO res after summing up Parton ID's: %.5e with stau mass: %.2f\n", xsec_LO, p.m_f);
+		printf("Final SLO res after summing up Parton ID's: %.5e with stau mass: %.2f\n", xsec_LO, p.m_f);
 	}
 
 	
