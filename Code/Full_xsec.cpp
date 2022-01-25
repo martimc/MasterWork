@@ -30,7 +30,7 @@ struct params {
 	double m_g = 2e3; 
 	double S = pow(14e3, 2);
 	double T_f[2], e_q[2], L[2], R[2], lL[2], lR[2], m_sq[2];
-	double S_ij[2][2], delta[2][2], sL[2][2][2], sR[2][2][2];
+	double S_ij[2][2], delta[2][2], sL[2][2][2], sR[2][2][2], sLq[2][2][2], sRq[2][2][2];
 	const PDF* pdf;
 	int pid;
 	double M2;
@@ -42,16 +42,69 @@ struct params {
 
 double f_gamma(double M2, double m_gluino, double m_sq[2]) {
 	double result = 2;
-	ltini();
 	for (int k = 0; k < 2; k++) {
 		double mq2 = pow(m_sq[k], 2);
-		double term1 = (2 * m_gluino - 2 * m_sq[k] + M2) / M2 * (real(B0(M2, mq2, mq2)) - real(B0(0, mq2, mq2)));
-		double term2 = (mq2 - pow(m_gluino, 2)) * real(DB0(0, pow(m_gluino, 2), mq2));
-		double term3 = 2 * (pow(m_gluino, 4) + (M2 - 2 * mq2) * pow(m_gluino, 2) + pow(mq2, 2)) / M2 * real(C0(0, M2, 0, mq2, pow(m_gluino, 2), mq2));
+		double mg2 = pow(m_gluino, 2);
+		double term1 = (2 * mg2 - 2 * mq2 + M2) / M2 * (real(B0(M2, mq2, mq2)) - real(B0(0, mg2, mq2)));
+		double term2 = (mq2 - mg2) * real(DB0(0, mg2, mq2));
+		double term3 = 2 * (pow(mg2, 2) + (M2 - 2 * mq2) * mg2 + pow(mq2, 2)) / M2 * real(C0(0, M2, 0, mq2, mg2, mq2));
 
 		result += term1 + term2 + term3;
 	}
 	//ltexi();
+	return result;
+}
+
+double f_gammaZ(double M2, int a, void* p) {
+	struct params* fp = (struct params*)p;
+	double L_qq = fp->L[a];
+	double R_qq = fp->R[a];
+	double result = 2 * (L_qq * R_qq);
+
+	for (int i = 0; i < 2; i++) {
+		double mg2 = pow(fp->m_g, 2);
+		double mq2 = pow(fp->m_sq[i], 2);
+		double sL_qq = fp->sLq[a][i][i];
+		double sR_qq = fp->sRq[a][i][i];
+		double S_i = pow(fp->S_ij[i][0],2);
+
+		double term1 = 2 * (2 * mg2 - 2 * mq2 + M2) * (sL_qq + sR_qq) / M2 * real(B0(M2, mq2, mq2));
+		double term2 = 2 * (2 * mg2 - 2 * mq2 + M2) * (L_qq * S_i + R_qq * S_i) / M2 * real(B0(0, mg2, mq2));
+		double term3 = (mq2 - mg2) * (L_qq + R_qq) * real(DB0(0, mg2, mq2));
+		double term4 = 4 * (pow(mg2, 2) + (M2 - 2 * mq2) * mg2 + pow(mq2, 2)) * (sL_qq + sR_qq) / M2 * real(C0(0, M2, 0, mq2, mg2, mq2));
+
+		result += term1 - term2 + term3 + term4;
+	}
+	return result;
+}
+
+double f_Z(double M2, int a, void* p) {
+	struct params* fp = (struct params*)p;
+	double L_qq = pow(fp->L[a], 2);
+	double R_qq = pow(fp->R[a], 2);
+	double result = 2 * (L_qq * R_qq);
+
+	for (int i = 0; i < 2; i++) {
+		double mg2 = pow(fp->m_g, 2);
+		double mq2 = pow(fp->m_sq[i], 2);
+		double S_i = pow(fp->S_ij[i][0], 2);
+
+		double term2 = 2 * (2 * mg2 - 2 * mq2 + M2) * (L_qq * S_i + R_qq * S_i) / M2 * real(B0(0, mg2, mq2));
+		double term3 = (mq2 - mg2) * (L_qq + R_qq) * real(DB0(0, mg2, mq2));
+
+		for (int j = 0; j < 2; j++) {
+			double mq2_j = pow(fp->m_sq[j], 2);
+
+			double sL_qq = fp->sLq[a][i][j];
+			double sR_qq = fp->sRq[a][i][j];
+
+			double term1 = 2 * (2 * mg2 - mq2 - mq2_j + M2) * pow((sL_qq + sR_qq),2) / M2 * real(B0(M2, mq2, mq2_j));
+			double term4 = 4 * (pow(mg2, 2) + (M2 - mq2 - mq2_j) * mg2 + mq2 * mq2_j) * pow((sL_qq + sR_qq),2) / M2 * real(C0(0, M2, 0, mq2, mg2, mq2_j));
+			result += term1 + term4;
+		}
+
+		result += term3 - term2;
+	}
 	return result;
 }
 
@@ -66,9 +119,9 @@ double susy_cross(double M2, int a, int L_ID, void* p) {
 
 	for (int i = 0; i < 1; i++) {
 		for (int j = 0; j < 1; j++) {
-			double term1 = pow(fp->e_q[a], 2) * pow(fp->e_l[L_ID], 2) * fp->delta[i][j];//f_gamma(M2, fp->m_g, fp->m_sq)*pow(fp->e_q[a], 2) * pow(fp->e_l[L_ID], 2) * fp->delta[i][j];
-			double term2 = fp->e_q[a] * fp->e_l[L_ID] * fp->delta[i][j] * (fp->L[a] + fp->R[a]) * (fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]) / (4 * fp->sin_thetaW * (1 - fp->sin_thetaW) * (1 - pow(fp->m_Z, 2) / M2));
-			double term3 = (pow(fp->L[a], 2) + pow(fp->R[a], 2)) * pow((fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]), 2) / (32 * pow(fp->sin_thetaW, 2) * pow((1 - fp->sin_thetaW), 2) * pow((1 - pow(fp->m_Z, 2) / M2), 2));
+			double term1 = f_gamma(M2, fp->m_g, fp->m_sq)*pow(fp->e_q[a], 2) * pow(fp->e_l[L_ID], 2) * fp->delta[i][j];
+			double term2 = f_gammaZ(M2, a, fp)*fp->e_q[a] * fp->e_l[L_ID] * fp->delta[i][j] * (fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]) / (4 * fp->sin_thetaW * (1 - fp->sin_thetaW) * (1 - pow(fp->m_Z, 2) / M2));
+			double term3 = f_Z(M2, a, fp) * pow((fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]), 2) / (32 * pow(fp->sin_thetaW, 2) * pow((1 - fp->sin_thetaW), 2) * pow((1 - pow(fp->m_Z, 2) / M2), 2));
 
 			susy_xsec += frac * (term1 + term2 + term3);
 		}
@@ -76,7 +129,7 @@ double susy_cross(double M2, int a, int L_ID, void* p) {
 	return susy_xsec;
 }
 
-double susy_integrand(double x[], size_t dim, void* p) {
+/*double susy_integrand(double x[], size_t dim, void* p) {
 	struct params* fp = (struct params*)p;
 
 	double M2 = x[0] * x[1] * fp->S;
@@ -88,11 +141,25 @@ double susy_integrand(double x[], size_t dim, void* p) {
 		int a = abs((fp->pid)) % 2;
 		int L_ID = fp->lepton_type;
 
-		double partonic_xsec = susy_cross(M2, a, L_ID, fp);
+		double susy_xsec = 0;
+		double C_F = 4.0 / 3;
 
-		return (fp->pdf->xfxQ2(fp->pid, x[0], pow(fp->mu_F, 2)) / x[0] * fp->pdf->xfxQ2(-1 * (fp->pid), x[1], pow(fp->mu_F, 2)) / x[1] * partonic_xsec);
+		double beta = sqrt(1 + pow(fp->m_f, 4) / pow(M2, 2) + pow(fp->m_f, 4) / pow(M2, 2) - 2 * (pow(fp->m_f, 2) / M2 + pow(fp->m_f, 2) / M2 + (pow(fp->m_f, 2) * pow(fp->m_f, 2)) / pow(M2, 2)));
+		double frac = pow(fp->alpha, 2) * fp->pi * C_F * pow(beta, 3) / (36 * M2);
+
+		for (int i = 0; i < 1; i++) {
+			for (int j = 0; j < 1; j++) {
+				double term1 = f_gamma(M2, fp->m_g, fp->m_sq)*pow(fp->e_q[a], 2) * pow(fp->e_l[L_ID], 2) * fp->delta[i][j];
+				double term2 = f_gammaZ(M2, a, fp)*fp->e_q[a] * fp->e_l[L_ID] * fp->delta[i][j] * (fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]) / (4 * fp->sin_thetaW * (1 - fp->sin_thetaW) * (1 - pow(fp->m_Z, 2) / M2));
+				double term3 = f_Z(M2, a, fp) * pow((fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]), 2) / (32 * pow(fp->sin_thetaW, 2) * pow((1 - fp->sin_thetaW), 2) * pow((1 - pow(fp->m_Z, 2) / M2), 2));
+
+				susy_xsec += frac * (term1 + term2 + term3);
+			}
+		}
+
+		return (fp->pdf->xfxQ2(fp->pid, x[0], pow(fp->mu_F, 2)) / x[0] * fp->pdf->xfxQ2(-1 * (fp->pid), x[1], pow(fp->mu_F, 2)) / x[1] * fp->alpha_s/fp->pi * susy_xsec);
 	}
-}
+}*/
 
 double LO_cross(double M2, int a, int L_ID, void* p) {
 	struct params* fp = (struct params*)p;
@@ -132,6 +199,20 @@ double LO_integrand(double x[], size_t dim, void* p) {
 	}
 }
 
+double plus_integrand(double z, double M2, int a, int L_ID, void* p) {
+	struct params* fp = (struct params*)p;
+
+	double C_F = 4.0 / 3;
+
+	double LO_xsec = LO_cross(M2, a, L_ID, fp);
+	double M2_Z1 = M2 / z;
+	double LO_xsecZ1 = LO_cross(M2_Z1, a, L_ID, fp);
+
+	double partonic_xsec = 4 * C_F * (log(1 - z) / (1 - z); *(LO_xsec - LO_xsecZ1));
+
+	return (fp->pdf->xfxQ2(fp->pid, x[1], pow(fp->mu_F, 2)) / x[1] * fp->pdf->xfxQ2(-1 * (fp->pid), x[2], pow(fp->mu_F, 2)) / x[2] * fp->alpha_s / fp->pi * partonic_xsec);
+}
+
 double P_qg(double z, double T_R) {
 	return T_R / 2 * (pow(z, 2) + pow((1 - z), 2));
 }
@@ -164,11 +245,13 @@ double Z_NLO_integrand(double x[], size_t dim, void* p) {
 
 		double qg_terms = (1.0 / 2 - z + z2) * log(pow((1 - z), 2) / z) + 1.0 / 4 + 3 * z / 2 - 7 * z2 / 4 + P_qg(z, T_R) / T_R * log(M2 / pow(fp->mu_F, 2));
 
-		double qg_term = fp->pdf->xfxQ2(21, x[1], pow(fp->m_f, 2)) / x[1] * T_R * qg_terms;
+		double qg_term = 2*fp->pdf->xfxQ2(21, x[1], pow(fp->m_f, 2)) / x[1] * T_R * qg_terms;
 
 		double partonic_xsec = frac * (qq_term + qg_term);
 
-		return partonic_xsec;
+		double plus_term = plus_integrand(z, M2, a, L_ID, fp);
+
+		return partonic_xsec + plus_term;
 	}
 }
 
@@ -189,37 +272,11 @@ double xa_xb_integrand(double x[], size_t dim, void* p) {
 
 		double NLO_terms = pow(fp->pi, 2) / 3 - 4 + 3.0 / 2 * log(M2 / pow(fp->mu_F, 2));
 
-		double partonic_xsec = LO_xsec * (1 + fp->pdf->alphasQ2(pow(fp->mu_R, 2)) / (fp->pi) * C_F * NLO_terms);
+		double susy_xsec = fp->alpha_s/fp->pi*susy_cross(M2, a, L_ID, fp);
+
+		double partonic_xsec = LO_xsec * (1 + fp->pdf->alphasQ2(pow(fp->mu_R, 2)) / (fp->pi) * C_F * NLO_terms) + susy_xsec;
 
 		return (fp->pdf->xfxQ2(fp->pid, x[0], pow(fp->mu_F, 2)) / x[0] * fp->pdf->xfxQ2(-1 * (fp->pid), x[1], pow(fp->mu_F, 2)) / x[1] * partonic_xsec);
-	}
-}
-
-double f_plus(double z) {
-	return log(1 - z) / (1 - z);
-}
-
-double plus_Integrand(double x[], size_t dim, void* p) {
-	struct params* fp = (struct params*)p;
-
-	double M2 = x[0] * x[1] * x[2] * fp->S;
-
-	if (M2 < 4 * pow(fp->m_f, 2)) {
-		return 0;
-	}
-	else {
-		int a = abs((fp->pid)) % 2;
-		int L_ID = fp->lepton_type;
-		double z = x[0];
-		double C_F = 4.0 / 3;
-
-		double LO_xsec = LO_cross(M2, a, L_ID, fp);
-		double M2_Z1 = x[1] * x[2] * fp->S;
-		double LO_xsecZ1 = LO_cross(M2_Z1, a, L_ID, fp);
-
-		double partonic_xsec = 4 * C_F * (f_plus(z) * (LO_xsec - LO_xsecZ1) + LO_xsecZ1 * log(1 - z));
-
-		return (fp->pdf->xfxQ2(fp->pid, x[1], pow(fp->mu_F, 2)) / x[1] * fp->pdf->xfxQ2(-1 * (fp->pid), x[2], pow(fp->mu_F, 2)) / x[2] * partonic_xsec);
 	}
 }
 
@@ -245,6 +302,8 @@ int main(int argc, char* argv[]) {
 			for (int k = 0; k < 2; k++) {
 				p.sL[i][j][k] = p.lL[i] * p.S_ij[j][0] * p.S_ij[k][0];
 				p.sR[i][j][k] = p.lR[i] * p.S_ij[j][1] * p.S_ij[k][1];
+				p.sLq[i][j][k] = p.L[i] * p.S_ij[j][0] * p.S_ij[k][0];
+				p.sRq[i][j][k] = p.R[i] * p.S_ij[j][1] * p.S_ij[k][1];
 			}
 			if (i == j) {
 				p.delta[j][i] = 1;
@@ -271,7 +330,7 @@ int main(int argc, char* argv[]) {
 
 	vector<int> pids = p.pdf->flavors();
 
-	for (int i = 0; i < 11; i++) {
+	for (int i = 0; i < 1; i++) {
 		double min_mf = 114.8;
 		double max_mf = 350;
 		double dm = (max_mf - min_mf) / 10;
@@ -309,7 +368,7 @@ int main(int argc, char* argv[]) {
 			gsl_monte_function G = { &xa_xb_integrand, dim1, &p };
 			gsl_monte_function H = { &Z_NLO_integrand, dim2, &p };
 			gsl_monte_function plus = { &plus_Integrand, dim2, &p };
-			gsl_monte_function LO = { &susy_integrand, dim1, &p };
+			gsl_monte_function LO = { &LO_integrand, dim1, &p };
 
 			size_t calls = 100000;
 
@@ -332,6 +391,7 @@ int main(int argc, char* argv[]) {
 				gsl_monte_vegas_state* t = gsl_monte_vegas_alloc(dim2);
 				gsl_monte_vegas_state* u = gsl_monte_vegas_alloc(dim1);
 
+				ltini();
 				gsl_monte_vegas_integrate(&G, x0, x1, dim1, 10000, r, s, &res1, &err1);
 
 				do
@@ -360,7 +420,7 @@ int main(int argc, char* argv[]) {
 				{
 					gsl_monte_vegas_integrate(&LO, x0, x1, dim1, calls / 5, r, u,
 						&res_LO, &err_LO);
-					printf("result = % .6e sigma = % .6e chisq/dof = %.3e, while term: %.3e\n", res_LO, err_LO, gsl_monte_vegas_chisq(u), fabs(gsl_monte_vegas_chisq(u) - 1));
+					//printf("result = % .6e sigma = % .6e chisq/dof = %.3e, while term: %.3e\n", res_LO, err_LO, gsl_monte_vegas_chisq(u), fabs(gsl_monte_vegas_chisq(u) - 1));
 				} while (fabs(gsl_monte_vegas_chisq(u) - 1) > 0.5);
 
 				gsl_monte_vegas_free(u);
@@ -376,7 +436,7 @@ int main(int argc, char* argv[]) {
 		xsec *= 0.38938e-3;
 		xsec_LO *= 0.38938e-3;
 		printf("Final NLO res after summing up Parton ID's: %.5e with stau mass: %.2f\n", xsec, p.m_f);
-		printf("Final SLO res after summing up Parton ID's: %.5e with stau mass: %.2f\n", xsec_LO, p.m_f);
+		printf("Final LO res after summing up Parton ID's: %.5e with stau mass: %.2f\n", xsec_LO, p.m_f);
 	}
 
 	
