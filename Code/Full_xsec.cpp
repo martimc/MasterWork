@@ -121,7 +121,7 @@ double susy_cross(double M2, int a, int L_ID, void* p) {
 	for (int i = 0; i < 1; i++) {
 		for (int j = 0; j < 1; j++) {
 			double term1 = f_gamma(M2, fp->m_g, fp->m_sq) * pow(fp->e_q[a], 2) * pow(fp->e_l[L_ID], 2) * fp->delta[i][j];//f_gamma(M2, fp->m_g, fp->m_sq)*
-			double term2 = f_gammaZ(M2, a, fp) * fp->e_l[L_ID] * fp->delta[i][j] * (fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]) / (4 * fp->sin_thetaW * (1 - fp->sin_thetaW) * (1 - pow(fp->m_Z, 2) / M2));//f_gammaZ(M2, a, fp)*
+			double term2 = f_gammaZ(M2, a, fp) * fp->e_q[a] * fp->e_l[L_ID] * fp->delta[i][j] * (fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]) / (4 * fp->sin_thetaW * (1 - fp->sin_thetaW) * (1 - pow(fp->m_Z, 2) / M2));//f_gammaZ(M2, a, fp)*
 			double term3 = f_Z(M2, a, fp) * pow((fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]), 2) / (32 * pow(fp->sin_thetaW, 2) * pow((1 - fp->sin_thetaW), 2) * pow((1 - pow(fp->m_Z, 2) / M2), 2));//f_Z(M2, a, fp) * 
 
 			susy_xsec += frac * (term1 + term2 + term3);
