@@ -1,4 +1,5 @@
 #include <iostream>
+#include <typeinfo>
 #include <fstream>
 #include <ctime>
 #include <iomanip>
@@ -6,12 +7,12 @@
 #include <string>
 #include <random>
 #include <cmath>
-#include <complex> 
+#include <complex>
 #include "LHAPDF/LHAPDF.h"
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_monte.h>
 #include <gsl/gsl_monte_vegas.h>
-#include "clooptools.h"
+//#include "clooptools.h"
 
 using namespace LHAPDF;
 using namespace std;
@@ -25,10 +26,10 @@ struct params {
 	double alpha = sqrt(2) * G_F * pow(m_W, 2) * sin_thetaW / pi;
 	double e = sqrt(4 * alpha * pi);
 	double e_l[2];
-	double thetaf = 82.0/360*2*pi;
+	double thetaf = 0; //6.25e-01//82.0/360*2*pi;
 	double m_f; //= 114.8;
-	double m_g = 2e3; 
-	double S = pow(14e3, 2);
+	double m_g = 2e3;
+	double S = pow(13e3, 2);
 	double T_f[2], e_q[2], L[2], R[2], lL[2], lR[2], m_sq[2];
 	double S_ij[2][2], delta[2][2], sL[2][2][2], sR[2][2][2], sLq[2][2][2], sRq[2][2][2];
 	const PDF* pdf;
@@ -41,7 +42,7 @@ struct params {
 	vector<int> pids;
 };
 
-double f_gamma(double M2, double m_gluino, double m_sq[2]) {
+/*double f_gamma(double M2, double m_gluino, double m_sq[2]) {
 	double result = 2;
 	for (int k = 0; k < 2; k++) {
 		double mq2 = pow(m_sq[k], 2);
@@ -118,19 +119,23 @@ double susy_cross(double M2, int a, int L_ID, void* p) {
 	double beta = sqrt(1 + pow(fp->m_f, 4) / pow(M2, 2) + pow(fp->m_f, 4) / pow(M2, 2) - 2 * (pow(fp->m_f, 2) / M2 + pow(fp->m_f, 2) / M2 + (pow(fp->m_f, 2) * pow(fp->m_f, 2)) / pow(M2, 2)));
 	double frac = pow(fp->alpha, 2) * fp->pi * C_F * pow(beta, 3) / (36 * M2);
 
-	for (int i = 0; i < 1; i++) {
-		for (int j = 0; j < 1; j++) {
-			double term1 = f_gamma(M2, fp->m_g, fp->m_sq) * pow(fp->e_q[a], 2) * pow(fp->e_l[L_ID], 2) * fp->delta[i][j];//f_gamma(M2, fp->m_g, fp->m_sq)*
-			double term2 = f_gammaZ(M2, a, fp) * fp->e_q[a] * fp->e_l[L_ID] * fp->delta[i][j] * (fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]) / (4 * fp->sin_thetaW * (1 - fp->sin_thetaW) * (1 - pow(fp->m_Z, 2) / M2));//f_gammaZ(M2, a, fp)*
-			double term3 = f_Z(M2, a, fp) * pow((fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]), 2) / (32 * pow(fp->sin_thetaW, 2) * pow((1 - fp->sin_thetaW), 2) * pow((1 - pow(fp->m_Z, 2) / M2), 2));//f_Z(M2, a, fp) * 
+	double f_g = f_gamma(M2, fp->m_g, fp->m_sq);
+	double f_gZ = f_gammaZ(M2, a, fp);
+	double f_Zboson = f_Z(M2, a, fp);
+
+	for (int i = 0; i < 2; i++) {
+		for (int j = 0; j < 2; j++) {
+			double term1 = f_g * pow(fp->e_q[a], 2) * pow(fp->e_l[L_ID], 2) * fp->delta[i][j];//f_gamma(M2, fp->m_g, fp->m_sq)*
+			double term2 = f_gZ * fp->e_q[a] * fp->e_l[L_ID] * fp->delta[i][j] * (fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]) / (4 * fp->sin_thetaW * (1 - fp->sin_thetaW) * (1 - pow(fp->m_Z, 2) / M2));//f_gammaZ(M2, a, fp)*
+			double term3 = f_Zboson * pow((fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]), 2) / (32 * pow(fp->sin_thetaW, 2) * pow((1 - fp->sin_thetaW), 2) * pow((1 - pow(fp->m_Z, 2) / M2), 2));//f_Z(M2, a, fp) *
 
 			susy_xsec += frac * (term1 + term2 + term3);
 		}
 	}
 	clearcache();
-	
+
 	return susy_xsec;
-}
+}*/
 
 double LO_cross(double M2, int a, int L_ID, void* p) {
 	struct params* fp = (struct params*)p;
@@ -256,15 +261,15 @@ double Z_NLO_integrand(double x[], size_t dim, void* p) {
 
 			double LO_xsec = LO_cross(M2, a, L_ID, fp);
 			double frac = fp->alpha_s / (fp->pi) * LO_xsec * pdfs_a[fp->pids[i]] / x[1];
-			
+
 			double qq_term = pdfs_b[-1*fp->pids[i]] / x[2] * C_F * (qq_term1 + qq_term2 + qq_term3);
 			double qg_term = 2 * pdfs_b[21] / x[2] * T_R * qg_terms;
 
 			double partonic_xsec = frac * (qq_term + qg_term);
 
-			double plus_term = pdfs_a[fp->pids[i]] / x[1] * pdfs_b[-1 * fp->pids[i]] / x[2] * fp->alpha_s / fp->pi * plus_integrand(z, M2, a, L_ID, fp);
+			//double plus_term = pdfs_a[fp->pids[i]] / x[1] * pdfs_b[-1 * fp->pids[i]] / x[2] * fp->alpha_s / fp->pi * plus_integrand(z, M2, a, L_ID, fp);
 
-			NLO_Z += partonic_xsec + plus_term;
+			NLO_Z += partonic_xsec; //+ plus_term;
 		}
 
 		return NLO_Z;
@@ -276,7 +281,7 @@ double xa_xb_integrand(double x[], size_t dim, void* p) {
 
 	std::map<int, double> pdfs_a = fp->pdf->xfxQ2(x[0], pow(fp->mu_F, 2));
 	std::map<int, double> pdfs_b = fp->pdf->xfxQ2(x[1], pow(fp->mu_F, 2));
-	
+
 	double M2 = x[0] * x[1] * fp->S;
 
 	if (M2 < 4 * pow(fp->m_f, 2)) {
@@ -287,7 +292,6 @@ double xa_xb_integrand(double x[], size_t dim, void* p) {
 
 		int L_ID = fp->lepton_type;
 		double C_F = 4.0 / 3;
-		//double tau = 4 * pow(fp->m_f, 2) / fp->S;
 
 		double NLO_terms = pow(fp->pi, 2) / 3 - 4 + 3.0 / 2 * log(M2 / pow(fp->mu_F, 2));
 
@@ -296,11 +300,11 @@ double xa_xb_integrand(double x[], size_t dim, void* p) {
 
 			double LO_xsec = LO_cross(M2, a, L_ID, fp);
 
-			double susy_xsec = fp->alpha_s / fp->pi * susy_cross(M2, a, L_ID, fp);
+			//double susy_xsec = fp->alpha_s / fp->pi * susy_cross(M2, a, L_ID, fp);
 
 			//double plus_terms = fp->alpha_s / fp->pi * (LO_xsec * 4 * C_F * -1.0 / 2 * pow(log(1 - tau), 2) - 2 * C_F * LO_xsec * log(1 - tau));
 
-			double partonic_xsec = LO_xsec * (1 + fp->alpha_s / (fp->pi) * C_F * NLO_terms) + susy_xsec;
+			double partonic_xsec = LO_xsec * (1 + fp->alpha_s / (fp->pi) * C_F * NLO_terms);// + susy_xsec;
 
 			NLO_Z1 += pdfs_a[fp->pids[i]] / x[0] * pdfs_b[-1 * fp->pids[i]] / x[1] * partonic_xsec;
 		}
@@ -312,6 +316,7 @@ double xa_xb_integrand(double x[], size_t dim, void* p) {
 int main(int argc, char* argv[]) {
 
 	struct params p;
+	struct params init;
 	//for quarks: 1 is down-type and 0 is up-type
 
 	p.e_q[1] = -1.0 * (1.0 / 3); p.e_q[0] = (2.0 / 3);
@@ -350,6 +355,8 @@ int main(int argc, char* argv[]) {
 		return 1;
 	}
 
+	cout << "sR is of type" << p.lR[1] << endl;
+
 	const string setname = argv[1];
 	const string smem = argv[2];
 	const int imem = lexical_cast<int>(smem);
@@ -363,12 +370,12 @@ int main(int argc, char* argv[]) {
 
 	std::map<int, double> pdfs = p.pdf->xfxQ2(0.25, pow(2.0, 2));
 
-	for (int a = 0; a < 10; a++) {
+	/*for (int a = 0; a < 10; a++) {
 		cout << "pdf value at pid " << pids[a] << " is: " << pdfs[pids[a]] << endl;
-	}
+	}*/
 
 	for (int i = 0; i < 1; i++) {
-		double min_mf = 114.8;
+		double min_mf = 200;
 		double max_mf = 350;
 		double dm = (max_mf - min_mf) / 10;
 		p.m_f = min_mf + i * dm;
@@ -378,10 +385,6 @@ int main(int argc, char* argv[]) {
 		p.lepton_type = 1;
 
 		double xsec = 0;
-
-		//double tau = p.M2 / p.S;
-		double tau = 4 * pow(p.m_f, 2) / p.S;
-		//printf("%.4f\n", p.thetaf);
 
 		size_t dim1 = 2;
 		size_t dim2 = 3;
@@ -424,14 +427,14 @@ int main(int argc, char* argv[]) {
 			gsl_monte_vegas_state* t = gsl_monte_vegas_alloc(dim2);
 			gsl_monte_vegas_state* u = gsl_monte_vegas_alloc(dim2);
 
-			ltini();
+			//ltini();
 			gsl_monte_vegas_integrate(&G, x0, x1, dim1, 10000, r, s, &res1, &err1);
 
 			do
 			{
 				gsl_monte_vegas_integrate(&G, x0, x1, dim1, calls / 5, r, s,
 					&res1, &err1);
-				printf("result = % .6e sigma = % .6e chisq/dof = %.3e\n", res1, err1, gsl_monte_vegas_chisq(s));
+				//printf("result = % .6e sigma = % .6e chisq/dof = %.3e\n", res1, err1, gsl_monte_vegas_chisq(s));
 			} while (fabs(gsl_monte_vegas_chisq(s) - 1) > 0.5);
 
 			gsl_monte_vegas_free(s);
@@ -452,66 +455,21 @@ int main(int argc, char* argv[]) {
 			printf("done with Z integral!\n");
 
 			gsl_monte_vegas_integrate(&plus, x0_plus, x1_plus, dim2, 10000, r, u, &res_plus, &err_plus);
-			
+
 			do
 			{
 				gsl_monte_vegas_integrate(&plus, x0_plus, x1_plus, dim2, calls / 5, r, u,
 					&res_plus, &err_plus);
-				printf("result = % .6e sigma = % .6e chisq/dof = %.3e, while term: %.3e\n", res_plus, err_plus, gsl_monte_vegas_chisq(u), fabs(gsl_monte_vegas_chisq(u) - 1));
+				//printf("result = % .6e sigma = % .6e chisq/dof = %.3e, while term: %.3e\n", res_plus, err_plus, gsl_monte_vegas_chisq(u), fabs(gsl_monte_vegas_chisq(u) - 1));
 			} while (fabs(gsl_monte_vegas_chisq(u) - 1) > 0.5);
 
 			gsl_monte_vegas_free(u);
 		}
 
+		cout << "NLO xsec res for xa_xb integration: " << res1*0.38938e-3 << " and for the z integration: " << res2*0.38938e-3 << endl;
+		cout << "and the sum is: " << (res1+res2)*0.38938e-3 << endl;
+
 		xsec = res1 + res2 - res_plus;
-
-		/*for (int a = 0; a < 10; a++) {
-			p.pid = pids[a];
-
-			{
-				gsl_monte_vegas_state* s = gsl_monte_vegas_alloc(dim1);
-				gsl_monte_vegas_state* t = gsl_monte_vegas_alloc(dim2);
-				gsl_monte_vegas_state* u = gsl_monte_vegas_alloc(dim2);
-
-				ltini();
-				gsl_monte_vegas_integrate(&G, x0, x1, dim1, 10000, r, s, &res1, &err1);
-
-				do
-				{
-					gsl_monte_vegas_integrate(&G, x0, x1, dim1, calls / 5, r, s,
-						&res1, &err1);
-					printf("result = % .6e sigma = % .6e chisq/dof = %.3e\n", res1, err1, gsl_monte_vegas_chisq(s));
-				} while (fabs(gsl_monte_vegas_chisq(s) - 1) > 0.5);
-
-				gsl_monte_vegas_free(s);
-		
-				gsl_monte_vegas_integrate(&H, x0_NLO, x1_NLO, dim2, 10000, r, t, &res2, &err2);
-
-				do
-				{
-					gsl_monte_vegas_integrate(&H, x0_NLO, x1_NLO, dim2, calls / 5, r, t,
-						&res2, &err2);
-					//printf("result = % .6e sigma = % .6e chisq/dof = %.3e\n", res, err, gsl_monte_vegas_chisq(s));
-				} while (fabs(gsl_monte_vegas_chisq(t) - 1) > 0.5);
-
-				gsl_monte_vegas_free(t);
-
-				gsl_monte_vegas_integrate(&plus, x0_plus, x1_plus, dim2, 10000, r, u, &res_LO, &err_LO);
-
-				do
-				{
-					gsl_monte_vegas_integrate(&plus, x0_plus, x1_plus, dim2, calls / 5, r, u,
-						&res_LO, &err_LO);
-					//printf("result = % .6e sigma = % .6e chisq/dof = %.3e, while term: %.3e\n", res_LO, err_LO, gsl_monte_vegas_chisq(u), fabs(gsl_monte_vegas_chisq(u) - 1));
-				} while (fabs(gsl_monte_vegas_chisq(u) - 1) > 0.5);
-
-				gsl_monte_vegas_free(u);
-				printf("done with pID: %d\n", p.pid);
-			}
-
-			xsec += res1 + res2 - res_LO;// +res_plus;
-			//xsec_LO += res_LO;
-		}*/
 
 		gsl_monte_function LO = { &LO_integrand, dim1, &p };
 
@@ -523,7 +481,7 @@ int main(int argc, char* argv[]) {
 
 			gsl_monte_vegas_integrate(&LO, x0, x1, dim1, 10000, r, v, &xsec_LO, &err_LO);
 			size_t calls = 100000;
-		
+
 			do
 			{
 				gsl_monte_vegas_integrate(&LO, x0, x1, dim1, calls / 5, r, v, &xsec_LO, &err_LO);
@@ -536,11 +494,11 @@ int main(int argc, char* argv[]) {
 
 		xsec *= 0.38938e-3;
 		xsec_LO *= 0.38938e-3;
-		printf("Final NLO res after summing up Parton ID's: %.5e with stau mass: %.2f\n", xsec, p.m_f);
-		printf("Final LO res after summing up Parton ID's: %.5e with stau mass: %.2f\n", xsec_LO, p.m_f);
+		printf("Final NLO res after summing up Parton ID's: %.5e with selectron mass: %.2f\n", xsec, p.m_f);
+		printf("Final LO res after summing up Parton ID's: %.5e with selectron mass: %.2f\n", xsec_LO, p.m_f);
 	}
 
-	
+
 
 	delete p.pdf;
 
