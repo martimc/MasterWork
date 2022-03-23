@@ -375,7 +375,7 @@ int main(int argc, char* argv[]) {
 	}*/
 
 	for (int i = 0; i < 1; i++) {
-		double min_mf = 200;
+		double min_mf = 140;
 		double max_mf = 350;
 		double dm = (max_mf - min_mf) / 10;
 		p.m_f = min_mf + i * dm;
@@ -385,6 +385,8 @@ int main(int argc, char* argv[]) {
 		p.lepton_type = 1;
 
 		double xsec = 0;
+
+		double tau = 4 * pow(p.m_f, 2)/p.S;
 
 		size_t dim1 = 2;
 		size_t dim2 = 3;

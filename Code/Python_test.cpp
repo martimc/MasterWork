@@ -31,21 +31,22 @@ struct params {
 	double e = sqrt(4 * alpha * pi);
 	double e_l[2];
 	double thetaf = 82.0/360*2*pi;
-	double m_f; //= 114.8;
+	double *m_f; //= 114.8;
 	double m_g = 2e3;
 	double S = pow(14e3, 2);
 	double T_f[2], e_q[2], L[2], R[2], lL[2], lR[2], m_sq[2];
 	double S_ij[2][2], delta[2][2], sL[2][2][2], sR[2][2][2], sLq[2][2][2], sRq[2][2][2];
 	double *M2;
+	double *z;
 	int lepton_type;
-	int a;
 	double mu_F;
 	double mu_R;
-	double alpha_s;
+	double *alpha_s;
 	int n;
 	double *LO_xsec;
 	double *susy_xsec;
 	int *pid;
+	double *Z1_xsec;
 };
 
 /*double f_gamma(double M2, double m_gluino, double m_sq[2]) {
@@ -116,17 +117,38 @@ double f_Z(double M2, int a, void* p) {
 	return result;
 }*/
 
+double LO_xsec(struct params* fp, double M2, int L_ID, int a){
+	double LO_out = 0;
+
+	double beta = sqrt(1 + pow(fp->m_f[0], 4) / pow(M2, 2) + pow(fp->m_f[1], 4) / pow(M2, 2) - 2 * (pow(fp->m_f[0], 2) / M2 + pow(fp->m_f[1], 2) / M2 + (pow(fp->m_f[0], 2) * pow(fp->m_f[1], 2)) / pow(M2, 2)));
+	double frac = pow(fp->alpha, 2) * fp->pi * pow(beta, 3) / (9 * M2);
+
+	for (int i = 1; i < 2; i++) {
+		for (int j = 1; j < 2; j++) {
+			double term1 = pow(fp->e_q[a], 2) * pow(fp->e_l[L_ID], 2) * fp->delta[i][j];
+			double term2 = fp->e_q[a] * fp->e_l[L_ID] * fp->delta[i][j] * (fp->L[a] + fp->R[a]) * (fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]) / (4 * fp->sin_thetaW * (1 - fp->sin_thetaW) * (1 - pow(fp->m_Z, 2) / M2));
+			double term3 = (pow(fp->L[a], 2) + pow(fp->R[a], 2)) * pow((fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]), 2) / (32 * pow(fp->sin_thetaW, 2) * pow((1 - fp->sin_thetaW), 2) * pow((1 - pow(fp->m_Z, 2) / M2), 2));
+
+			LO_out += frac * (term1 + term2 + term3);
+		}
+	}
+	return LO_out;
+}
+
+double P_qg(double z, double T_R) {
+	return T_R / 2 * (pow(z, 2) + pow((1 - z), 2));
+}
+
 extern "C" {
 
 void LO_cross(struct params* fp ) {
 	const double* M2 = fp->M2;
+	const double* z = fp->z;
 	int L_ID = fp->lepton_type;
-
-	//cout << fp->n << " " << M2[0] << endl;
 
 	for (int k = 0; k < fp->n; k++){
 
-		if (M2[k] < 4*pow(fp->m_f,2)){
+		if (z[k]*M2[k] < 4*fp->m_f[0]*fp->m_f[1]){
 			for (int i = 0; i < 10; i++){
 				fp->LO_xsec[10*k+i] = 0;
 			}
@@ -135,11 +157,11 @@ void LO_cross(struct params* fp ) {
 			for (int g = 0; g < 10; g++){
 				int a = abs((fp->pid[g])) % 2;
 
-				double beta = sqrt(1 + pow(fp->m_f, 4) / pow(M2[k], 2) + pow(fp->m_f, 4) / pow(M2[k], 2) - 2 * (pow(fp->m_f, 2) / M2[k] + pow(fp->m_f, 2) / M2[k] + (pow(fp->m_f, 2) * pow(fp->m_f, 2)) / pow(M2[k], 2)));
+				double beta = sqrt(1 + pow(fp->m_f[0], 4) / pow(M2[k], 2) + pow(fp->m_f[1], 4) / pow(M2[k], 2) - 2 * (pow(fp->m_f[0], 2) / M2[k] + pow(fp->m_f[1], 2) / M2[k] + (pow(fp->m_f[0], 2) * pow(fp->m_f[1], 2)) / pow(M2[k], 2)));
 				double frac = pow(fp->alpha, 2) * fp->pi * pow(beta, 3) / (9 * M2[k]);
 
-				for (int i = 0; i < 1; i++) {
-					for (int j = 0; j < 1; j++) {
+				for (int i = 1; i < 2; i++) {
+					for (int j = 1; j < 2; j++) {
 						double term1 = pow(fp->e_q[a], 2) * pow(fp->e_l[L_ID], 2) * fp->delta[i][j];
 						double term2 = fp->e_q[a] * fp->e_l[L_ID] * fp->delta[i][j] * (fp->L[a] + fp->R[a]) * (fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]) / (4 * fp->sin_thetaW * (1 - fp->sin_thetaW) * (1 - pow(fp->m_Z, 2) / M2[k]));
 						double term3 = (pow(fp->L[a], 2) + pow(fp->R[a], 2)) * pow((fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]), 2) / (32 * pow(fp->sin_thetaW, 2) * pow((1 - fp->sin_thetaW), 2) * pow((1 - pow(fp->m_Z, 2) / M2[k]), 2));
@@ -152,14 +174,39 @@ void LO_cross(struct params* fp ) {
 	}
 }
 
-void LO_test(struct params* fp ) {
+void Z1_cross( struct params* fp ) {
+	const double* M2 = fp->M2;
+
+	int L_ID = fp->lepton_type;
+	double C_F = 4.0/3;
+
+	for (int i = 0; i < fp->n; i++){
+
+		if (M2[i] < 4*fp->m_f[0]*fp->m_f[1]){
+			for (int j = 0; j < 10; j++){
+				fp->Z1_xsec[10*i+j] = 0;
+			}
+		}
+		else{
+			double NLO_terms = pow(fp->pi, 2) / 3 - 4 + 3.0 / 2 * log(M2[i] / pow(fp->mu_F, 2));
+			for (int j = 0; j < 10; j++){
+				int a = abs((fp->pid[j])) % 2;
+
+				double sigma_LO = LO_xsec(fp, M2[i], L_ID, a);
+				fp->Z1_xsec[10*i+j] = sigma_LO*(1 + fp->alpha_s[i] / fp->pi * C_F * NLO_terms);
+			}
+		}
+	}
+}
+
+/*void LO_test(struct params* fp ) {
 	int a = fp->a;
 	const double* M2 = fp->M2;
 	int L_ID = fp->lepton_type;
 
 	for (int k = 0; k < fp->n; k++){
 
-		double beta = sqrt(1 + pow(fp->m_f, 4) / pow(M2[k], 2) + pow(fp->m_f, 4) / pow(M2[k], 2) - 2 * (pow(fp->m_f, 2) / M2[k] + pow(fp->m_f, 2) / M2[k] + (pow(fp->m_f, 2) * pow(fp->m_f, 2)) / pow(M2[k], 2)));
+		double beta = sqrt(1 + pow(fp->m_f[0], 4) / pow(M2[k], 2) + pow(fp->m_f[1], 4) / pow(M2[k], 2) - 2 * (pow(fp->m_f[0], 2) / M2[k] + pow(fp->m_f[1], 2) / M2[k] + (pow(fp->m_f[0], 2) * pow(fp->m_f[1], 2)) / pow(M2[k], 2)));
 		double frac = pow(fp->alpha, 2) * fp->pi * pow(beta, 3) / (9 * M2[k]);
 
 		for (int i = 0; i < 1; i++) {
@@ -172,7 +219,7 @@ void LO_test(struct params* fp ) {
 			}
 		}
 	}
-}
+}*/
 
 /*void susy_cross(struct params* fp) {
 
