@@ -2,11 +2,9 @@ import os
 import ctypes
 import pathlib
 import sys
-from math import *
 from pdfflow import mkPDFs
 from pdfflow import int_me
 import tensorflow as tf
-import matplotlib.pyplot as plt
 from vegasflow import VegasFlow
 import numpy.ctypeslib as npct
 import numpy as np
@@ -28,19 +26,19 @@ def init_struct(mass, stau_mix):
 
     p.m_Z = ctypes.c_double(91.1876)
     p.m_W = ctypes.c_double(80.403)
-    p.pi = ctypes.c_double(pi)
+    p.pi = ctypes.c_double(np.pi)
     p.G_F = ctypes.c_double(1.16637e-5)
     p.sin_thetaW = ctypes.c_double(1-p.m_W**2/p.m_Z**2)
-    p.alpha = ctypes.c_double(sqrt(2) * p.G_F * p.m_W**2 * p.sin_thetaW / pi)
-    p.e = sqrt(4*p.alpha*pi)
+    p.alpha = ctypes.c_double(np.sqrt(2) * p.G_F * p.m_W**2 * p.sin_thetaW / np.pi)
+    p.e = np.sqrt(4*p.alpha*np.pi)
     p.thetaf = ctypes.c_double(stau_mix)#6.25e-1
     p.m_g = 2e3
     p.S = 13e3**2
 
     p.e_l[0] = ctypes.c_double(0); p.e_l[1] = ctypes.c_double(-1)
     p.e_q[0] = ctypes.c_double(2.0/3); p.e_q[1] = ctypes.c_double(-1*(1.0/3))
-    p.S_ij[0][0] = cos(p.thetaf); p.S_ij[0][1] = sin(p.thetaf)
-    p.S_ij[1][0] = -1*sin(p.thetaf); p.S_ij[1][1] = cos(p.thetaf)
+    p.S_ij[0][0] = np.cos(p.thetaf); p.S_ij[0][1] = np.sin(p.thetaf)
+    p.S_ij[1][0] = -1*np.sin(p.thetaf); p.S_ij[1][1] = np.cos(p.thetaf)
 
     for i in range(2):
 
@@ -233,7 +231,7 @@ if __name__ == '__main__':
     LO_data = np.zeros(len(mass))
     NLO_data = np.zeros(len(mass))
 
-    for i in range(len(mass)):
+    for i in range(2):
         struct = init_struct(np.asarray(mass[i]), stau_mix[i])
 
         result_LO, err_LO = integration(LO_integrand, 2, int(1e4), struct)
