@@ -123,8 +123,8 @@ double LO_xsec(struct params* fp, double M2, int L_ID, int a){
 	double beta = sqrt(1 + pow(fp->m_f[0], 4) / pow(M2, 2) + pow(fp->m_f[1], 4) / pow(M2, 2) - 2 * (pow(fp->m_f[0], 2) / M2 + pow(fp->m_f[1], 2) / M2 + (pow(fp->m_f[0], 2) * pow(fp->m_f[1], 2)) / pow(M2, 2)));
 	double frac = pow(fp->alpha, 2) * fp->pi * pow(beta, 3) / (9 * M2);
 
-	for (int i = 1; i < 2; i++) {
-		for (int j = 1; j < 2; j++) {
+	for (int i = 0; i < 1; i++) {
+		for (int j = 0; j < 1; j++) {
 			double term1 = pow(fp->e_q[a], 2) * pow(fp->e_l[L_ID], 2) * fp->delta[i][j];
 			double term2 = fp->e_q[a] * fp->e_l[L_ID] * fp->delta[i][j] * (fp->L[a] + fp->R[a]) * (fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]) / (4 * fp->sin_thetaW * (1 - fp->sin_thetaW) * (1 - pow(fp->m_Z, 2) / M2));
 			double term3 = (pow(fp->L[a], 2) + pow(fp->R[a], 2)) * pow((fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]), 2) / (32 * pow(fp->sin_thetaW, 2) * pow((1 - fp->sin_thetaW), 2) * pow((1 - pow(fp->m_Z, 2) / M2), 2));
@@ -160,8 +160,8 @@ void LO_cross(struct params* fp ) {
 				double beta = sqrt(1 + pow(fp->m_f[0], 4) / pow(M2[k], 2) + pow(fp->m_f[1], 4) / pow(M2[k], 2) - 2 * (pow(fp->m_f[0], 2) / M2[k] + pow(fp->m_f[1], 2) / M2[k] + (pow(fp->m_f[0], 2) * pow(fp->m_f[1], 2)) / pow(M2[k], 2)));
 				double frac = pow(fp->alpha, 2) * fp->pi * pow(beta, 3) / (9 * M2[k]);
 
-				for (int i = 1; i < 2; i++) {
-					for (int j = 1; j < 2; j++) {
+				for (int i = 0; i < 1; i++) {
+					for (int j = 0; j < 1; j++) {
 						double term1 = pow(fp->e_q[a], 2) * pow(fp->e_l[L_ID], 2) * fp->delta[i][j];
 						double term2 = fp->e_q[a] * fp->e_l[L_ID] * fp->delta[i][j] * (fp->L[a] + fp->R[a]) * (fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]) / (4 * fp->sin_thetaW * (1 - fp->sin_thetaW) * (1 - pow(fp->m_Z, 2) / M2[k]));
 						double term3 = (pow(fp->L[a], 2) + pow(fp->R[a], 2)) * pow((fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]), 2) / (32 * pow(fp->sin_thetaW, 2) * pow((1 - fp->sin_thetaW), 2) * pow((1 - pow(fp->m_Z, 2) / M2[k]), 2));
