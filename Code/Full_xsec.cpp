@@ -32,7 +32,7 @@ struct params {
 	double S = pow(13e3, 2);
 	double T_f[2], e_q[2], L[2], R[2], lL[2], lR[2], m_sq[2];
 	double S_ij[2][2], delta[2][2], sL[2][2][2], sR[2][2][2], sLq[2][2][2], sRq[2][2][2];
-	const PDF* pdf;
+	vector<LHAPDF::PDF*> pdfs;
 	int pid;
 	double M2;
 	int lepton_type;
@@ -40,6 +40,7 @@ struct params {
 	double mu_R;
 	double alpha_s;
 	vector<int> pids;
+	size_t imems;
 };
 
 /*double f_gamma(double M2, double m_gluino, double m_sq[2]) {
@@ -162,8 +163,8 @@ double LO_integrand(double x[], size_t dim, void* p) {
 
 	double M2 = x[0] * x[1] * fp->S;
 
-	std::map<int, double> pdfs_a = fp->pdf->xfxQ2(x[0], pow(fp->mu_F, 2));
-	std::map<int, double> pdfs_b = fp->pdf->xfxQ2(x[1], pow(fp->mu_F, 2));
+	std::map<int, double> pdfs_a = fp->pdfs[fp->imems]->xfxQ2(x[0], pow(fp->mu_F, 2));
+	std::map<int, double> pdfs_b = fp->pdfs[fp->imems]->xfxQ2(x[1], pow(fp->mu_F, 2));
 
 	if (M2 < 4 * pow(fp->m_f, 2)) {
 		return 0;
@@ -200,8 +201,8 @@ double plus_integrand(double z, double M2, int a, int L_ID, void* p) {
 double plus_corrections(double x[], size_t dim, void* p) {
 	struct params* fp = (struct params*)p;
 
-	std::map<int, double> pdfs_a = fp->pdf->xfxQ2(x[1], pow(fp->mu_F, 2));
-	std::map<int, double> pdfs_b = fp->pdf->xfxQ2(x[2], pow(fp->mu_F, 2));
+	std::map<int, double> pdfs_a = fp->pdfs[fp->imems]->xfxQ2(x[1], pow(fp->mu_F, 2));
+	std::map<int, double> pdfs_b = fp->pdfs[fp->imems]->xfxQ2(x[2], pow(fp->mu_F, 2));
 
 	double M2 = x[1] * x[2] * fp->S;
 	double z = x[0];
@@ -232,8 +233,8 @@ double P_qg(double z, double T_R) {
 double Z_NLO_integrand(double x[], size_t dim, void* p) {
 	struct params* fp = (struct params*)p;
 
-	std::map<int, double> pdfs_a = fp->pdf->xfxQ2(x[1], pow(fp->mu_F, 2));
-	std::map<int, double> pdfs_b = fp->pdf->xfxQ2(x[2], pow(fp->mu_F, 2));
+	std::map<int, double> pdfs_a = fp->pdfs[fp->imems]->xfxQ2(x[1], pow(fp->mu_F, 2));
+	std::map<int, double> pdfs_b = fp->pdfs[fp->imems]->xfxQ2(x[2], pow(fp->mu_F, 2));
 
 	double M2 = x[0] * x[1] * x[2] * fp->S;
 	double z = x[0];
@@ -279,8 +280,8 @@ double Z_NLO_integrand(double x[], size_t dim, void* p) {
 double xa_xb_integrand(double x[], size_t dim, void* p) {
 	struct params* fp = (struct params*)p;
 
-	std::map<int, double> pdfs_a = fp->pdf->xfxQ2(x[0], pow(fp->mu_F, 2));
-	std::map<int, double> pdfs_b = fp->pdf->xfxQ2(x[1], pow(fp->mu_F, 2));
+	std::map<int, double> pdfs_a = fp->pdfs[fp->imems]->xfxQ2(x[0], pow(fp->mu_F, 2));
+	std::map<int, double> pdfs_b = fp->pdfs[fp->imems]->xfxQ2(x[1], pow(fp->mu_F, 2));
 
 	double M2 = x[0] * x[1] * fp->S;
 
@@ -357,152 +358,167 @@ int main(int argc, char* argv[]) {
 
 	cout << "sR is of type" << p.lR[1] << endl;
 
+	time_t start_time = time(NULL);
+
 	const string setname = argv[1];
-	const string smem = argv[2];
-	const int imem = lexical_cast<int>(smem);
-	p.pdf = mkPDF(setname, imem);
+	const LHAPDF::PDFSet set(setname);
+  const size_t nmem = set.size()-1;
 
-	printf("going through params: %.8f & %.8f, %.8f, %.8f\n", p.T_f[1], p.sin_thetaW, p.S, 1/p.alpha);
+	const vector<LHAPDF::PDF*> pdf_sets = set.mkPDFs();
 
-	vector<int> pids = p.pdf->flavors();
+	p.pdfs = pdf_sets;
+	//p.pdf = mkPDF(setname, imem);
+	ofstream myfile;
+	myfile.open("time_cpp.dat");
+	myfile << "pdf_nr     time_elapsed\n";
 
-	p.pids = pids;
+	for (size_t imem = 0; imem <= nmem; imem++) {
+		p.imems = imem;
 
-	std::map<int, double> pdfs = p.pdf->xfxQ2(0.25, pow(2.0, 2));
+		vector<int> pids = p.pdfs[imem]->flavors();
 
-	/*for (int a = 0; a < 10; a++) {
-		cout << "pdf value at pid " << pids[a] << " is: " << pdfs[pids[a]] << endl;
-	}*/
+		p.pids = pids;
 
-	for (int i = 0; i < 1; i++) {
-		double min_mf = 140;
-		double max_mf = 350;
-		double dm = (max_mf - min_mf) / 10;
-		p.m_f = min_mf + i * dm;
-		p.mu_F = p.m_f;
-		p.mu_R = p.m_f;
-		p.alpha_s = p.pdf->alphasQ2(pow(p.mu_R, 2));
-		p.lepton_type = 1;
+		std::map<int, double> pdfs = p.pdfs[imem]->xfxQ2(0.25, pow(2.0, 2));
 
-		double xsec = 0;
+		/*for (int a = 0; a < 10; a++) {
+			cout << "pdf value at pid " << pids[a] << " is: " << pdfs[pids[a]] << endl;
+		}*/
 
-		double tau = 4 * pow(p.m_f, 2)/p.S;
+		for (int i = 0; i < 1; i++) {
+			double min_mf = 140;
+			double max_mf = 350;
+			double dm = (max_mf - min_mf) / 10;
+			p.m_f = min_mf + i * dm;
+			p.mu_F = p.m_f;
+			p.mu_R = p.m_f;
+			p.alpha_s = p.pdfs[imem]->alphasQ2(pow(p.mu_R, 2));
+			p.lepton_type = 1;
 
-		size_t dim1 = 2;
-		size_t dim2 = 3;
+			double xsec = 0;
 
-		double x0[dim1] = { tau, tau };
-		double x1[dim1] = { 1.0, 1.0 };
+			double tau = 4 * pow(p.m_f, 2)/p.S;
 
-		double x0_NLO[dim2] = { tau, tau, tau };
-		double x1_NLO[dim2] = { 1.0, 1.0, 1.0 };
+			size_t dim1 = 2;
+			size_t dim2 = 3;
 
-		double x0_plus[dim2] = { 0, tau, tau };
-		double x1_plus[dim2] = { tau, 1.0, 1.0 };
+			double x0[dim1] = { tau, tau };
+			double x1[dim1] = { 1.0, 1.0 };
 
-		const gsl_rng_type* T;
-		gsl_rng* r;
+			double x0_NLO[dim2] = { tau, tau, tau };
+			double x1_NLO[dim2] = { 1.0, 1.0, 1.0 };
 
-		gsl_monte_function G = { &xa_xb_integrand, dim1, &p };
-		gsl_monte_function H = { &Z_NLO_integrand, dim2, &p };
-		gsl_monte_function plus = { &plus_corrections, dim2, &p };
+			double x0_plus[dim2] = { 0, tau, tau };
+			double x1_plus[dim2] = { tau, 1.0, 1.0 };
 
-		size_t calls = 100000;
+			const gsl_rng_type* T;
+			gsl_rng* r;
 
-		gsl_rng_env_setup();
+			gsl_monte_function G = { &xa_xb_integrand, dim1, &p };
+			gsl_monte_function H = { &Z_NLO_integrand, dim2, &p };
+			gsl_monte_function plus = { &plus_corrections, dim2, &p };
 
-		T = gsl_rng_default;
-		r = gsl_rng_alloc(T);
-
-		double res1 = 0;
-		double err1 = 0;
-
-		double res2 = 0;
-		double err2 = 0;
-
-		double res_plus = 0;
-		double err_plus = 0;
-
-		{
-			printf("starting integration: \n");
-			gsl_monte_vegas_state* s = gsl_monte_vegas_alloc(dim1);
-			gsl_monte_vegas_state* t = gsl_monte_vegas_alloc(dim2);
-			gsl_monte_vegas_state* u = gsl_monte_vegas_alloc(dim2);
-
-			//ltini();
-			gsl_monte_vegas_integrate(&G, x0, x1, dim1, 10000, r, s, &res1, &err1);
-
-			do
-			{
-				gsl_monte_vegas_integrate(&G, x0, x1, dim1, calls / 5, r, s,
-					&res1, &err1);
-				//printf("result = % .6e sigma = % .6e chisq/dof = %.3e\n", res1, err1, gsl_monte_vegas_chisq(s));
-			} while (fabs(gsl_monte_vegas_chisq(s) - 1) > 0.5);
-
-			gsl_monte_vegas_free(s);
-
-			printf("done with xa_xb! \n");
-
-			gsl_monte_vegas_integrate(&H, x0_NLO, x1_NLO, dim2, 10000, r, t, &res2, &err2);
-
-			do
-			{
-				gsl_monte_vegas_integrate(&H, x0_NLO, x1_NLO, dim2, calls / 5, r, t,
-					&res2, &err2);
-				//printf("result = % .6e sigma = % .6e chisq/dof = %.3e\n", res, err, gsl_monte_vegas_chisq(s));
-			} while (fabs(gsl_monte_vegas_chisq(t) - 1) > 0.5);
-
-			gsl_monte_vegas_free(t);
-
-			printf("done with Z integral!\n");
-
-			gsl_monte_vegas_integrate(&plus, x0_plus, x1_plus, dim2, 10000, r, u, &res_plus, &err_plus);
-
-			do
-			{
-				gsl_monte_vegas_integrate(&plus, x0_plus, x1_plus, dim2, calls / 5, r, u,
-					&res_plus, &err_plus);
-				//printf("result = % .6e sigma = % .6e chisq/dof = %.3e, while term: %.3e\n", res_plus, err_plus, gsl_monte_vegas_chisq(u), fabs(gsl_monte_vegas_chisq(u) - 1));
-			} while (fabs(gsl_monte_vegas_chisq(u) - 1) > 0.5);
-
-			gsl_monte_vegas_free(u);
-		}
-
-		cout << "NLO xsec res for xa_xb integration: " << res1*0.38938e-3 << " and for the z integration: " << res2*0.38938e-3 << endl;
-		cout << "and the sum is: " << (res1+res2)*0.38938e-3 << endl;
-
-		xsec = res1 + res2 - res_plus;
-
-		gsl_monte_function LO = { &LO_integrand, dim1, &p };
-
-		double xsec_LO = 0;
-		double err_LO = 0;
-
-		{
-			gsl_monte_vegas_state* v = gsl_monte_vegas_alloc(dim1);
-
-			gsl_monte_vegas_integrate(&LO, x0, x1, dim1, 10000, r, v, &xsec_LO, &err_LO);
 			size_t calls = 100000;
 
-			do
+			gsl_rng_env_setup();
+
+			T = gsl_rng_default;
+			r = gsl_rng_alloc(T);
+
+			double res1 = 0;
+			double err1 = 0;
+
+			double res2 = 0;
+			double err2 = 0;
+
+			double res_plus = 0;
+			double err_plus = 0;
+
 			{
-				gsl_monte_vegas_integrate(&LO, x0, x1, dim1, calls / 5, r, v, &xsec_LO, &err_LO);
-			} while (fabs(gsl_monte_vegas_chisq(v) - 1) > 0.5);
+				printf("starting integration: \n");
+				gsl_monte_vegas_state* s = gsl_monte_vegas_alloc(dim1);
+				gsl_monte_vegas_state* t = gsl_monte_vegas_alloc(dim2);
+				gsl_monte_vegas_state* u = gsl_monte_vegas_alloc(dim2);
 
-			gsl_monte_vegas_free(v);
+				//ltini();
+				gsl_monte_vegas_integrate(&G, x0, x1, dim1, 10000, r, s, &res1, &err1);
+
+				do
+				{
+					gsl_monte_vegas_integrate(&G, x0, x1, dim1, calls / 5, r, s,
+						&res1, &err1);
+					//printf("result = % .6e sigma = % .6e chisq/dof = %.3e\n", res1, err1, gsl_monte_vegas_chisq(s));
+				} while (fabs(gsl_monte_vegas_chisq(s) - 1) > 0.5);
+
+				gsl_monte_vegas_free(s);
+
+				printf("done with xa_xb! \n");
+
+				gsl_monte_vegas_integrate(&H, x0_NLO, x1_NLO, dim2, 10000, r, t, &res2, &err2);
+
+				do
+				{
+					gsl_monte_vegas_integrate(&H, x0_NLO, x1_NLO, dim2, calls / 5, r, t,
+						&res2, &err2);
+					//printf("result = % .6e sigma = % .6e chisq/dof = %.3e\n", res, err, gsl_monte_vegas_chisq(s));
+				} while (fabs(gsl_monte_vegas_chisq(t) - 1) > 0.5);
+
+				gsl_monte_vegas_free(t);
+
+				printf("done with Z integral!\n");
+
+				gsl_monte_vegas_integrate(&plus, x0_plus, x1_plus, dim2, 10000, r, u, &res_plus, &err_plus);
+
+				do
+				{
+					gsl_monte_vegas_integrate(&plus, x0_plus, x1_plus, dim2, calls / 5, r, u,
+						&res_plus, &err_plus);
+					//printf("result = % .6e sigma = % .6e chisq/dof = %.3e, while term: %.3e\n", res_plus, err_plus, gsl_monte_vegas_chisq(u), fabs(gsl_monte_vegas_chisq(u) - 1));
+				} while (fabs(gsl_monte_vegas_chisq(u) - 1) > 0.5);
+
+				gsl_monte_vegas_free(u);
+			}
+
+			cout << "NLO xsec res for xa_xb integration: " << res1*0.38938e-3 << " and for the z integration: " << res2*0.38938e-3 << endl;
+			cout << "and the sum is: " << (res1+res2)*0.38938e-3 << endl;
+
+			xsec = res1 + res2 - res_plus;
+
+			gsl_monte_function LO = { &LO_integrand, dim1, &p };
+
+			double xsec_LO = 0;
+			double err_LO = 0;
+
+			{
+				gsl_monte_vegas_state* v = gsl_monte_vegas_alloc(dim1);
+
+				gsl_monte_vegas_integrate(&LO, x0, x1, dim1, 10000, r, v, &xsec_LO, &err_LO);
+				size_t calls = 100000;
+
+				do
+				{
+					gsl_monte_vegas_integrate(&LO, x0, x1, dim1, calls / 5, r, v, &xsec_LO, &err_LO);
+				} while (fabs(gsl_monte_vegas_chisq(v) - 1) > 0.5);
+
+				gsl_monte_vegas_free(v);
+			}
+
+			gsl_rng_free(r);
+
+			xsec *= 0.38938e-3*1e15;
+			xsec_LO *= 0.38938e-3*1e15;
+			printf("Final NLO res after summing up Parton ID's: %.5e with selectron mass: %.2f\n", xsec, p.m_f);
+			printf("Final LO res after summing up Parton ID's: %.5e with selectron mass: %.2f\n", xsec_LO, p.m_f);
 		}
+		time_t end_time = time(NULL);
+		cout << "time: " << end_time << "\n";
+		myfile << imem+1 << " " << end_time-start_time << "\n";
+		cout << "percent done of members:" << (imem+1)/nmem << "\n";
 
-		gsl_rng_free(r);
-
-		xsec *= 0.38938e-3;
-		xsec_LO *= 0.38938e-3;
-		printf("Final NLO res after summing up Parton ID's: %.5e with selectron mass: %.2f\n", xsec, p.m_f);
-		printf("Final LO res after summing up Parton ID's: %.5e with selectron mass: %.2f\n", xsec_LO, p.m_f);
 	}
+	myfile.close();
 
-
-
-	delete p.pdf;
+	//delete p.pdfs;
 
 	return 0;
 }
