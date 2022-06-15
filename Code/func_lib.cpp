@@ -7,13 +7,8 @@
 #include <random>
 #include <cmath>
 #include <complex>
-#include "LHAPDF/LHAPDF.h"
-#include <gsl/gsl_math.h>
-#include <gsl/gsl_monte.h>
-#include <gsl/gsl_monte_vegas.h>
 //#include "clooptools.h"
 
-using namespace LHAPDF;
 using namespace std;
 
 struct test {
@@ -148,13 +143,13 @@ void LO_cross(struct params* fp ) {
 
 	for (int k = 0; k < fp->n; k++){
 
-		if (z[k]*M2[k] < 4*fp->m_f[0]*fp->m_f[1]){
-			for (int i = 0; i < 10; i++){
-				fp->LO_xsec[10*k+i] = 0;
+		if (z[k]*M2[k] < pow(fp->m_f[0]+fp->m_f[1],2)){
+			for (int i = 0; i < 5; i++){
+				fp->LO_xsec[5*k+i] = 0;
 			}
 		}
 		else{
-			for (int g = 0; g < 10; g++){
+			for (int g = 0; g < 5; g++){
 				int a = abs((fp->pid[g])) % 2;
 
 				double beta = sqrt(1 + pow(fp->m_f[0], 4) / pow(M2[k], 2) + pow(fp->m_f[1], 4) / pow(M2[k], 2) - 2 * (pow(fp->m_f[0], 2) / M2[k] + pow(fp->m_f[1], 2) / M2[k] + (pow(fp->m_f[0], 2) * pow(fp->m_f[1], 2)) / pow(M2[k], 2)));
@@ -166,7 +161,7 @@ void LO_cross(struct params* fp ) {
 						double term2 = fp->e_q[a] * fp->e_l[L_ID] * fp->delta[i][j] * (fp->L[a] + fp->R[a]) * (fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]) / (4 * fp->sin_thetaW * (1 - fp->sin_thetaW) * (1 - pow(fp->m_Z, 2) / M2[k]));
 						double term3 = (pow(fp->L[a], 2) + pow(fp->R[a], 2)) * pow((fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]), 2) / (32 * pow(fp->sin_thetaW, 2) * pow((1 - fp->sin_thetaW), 2) * pow((1 - pow(fp->m_Z, 2) / M2[k]), 2));
 
-						fp->LO_xsec[10*k+g] += frac * (term1 + term2 + term3);
+						fp->LO_xsec[5*k+g] += frac * (term1 + term2 + term3);
 					}
 				}
 			}
@@ -182,44 +177,22 @@ void Z1_cross( struct params* fp ) {
 
 	for (int i = 0; i < fp->n; i++){
 
-		if (M2[i] < 4*fp->m_f[0]*fp->m_f[1]){
-			for (int j = 0; j < 10; j++){
-				fp->Z1_xsec[10*i+j] = 0;
+		if (M2[i] < pow(fp->m_f[0]+fp->m_f[1],2)){
+			for (int j = 0; j < 5; j++){
+				fp->Z1_xsec[5*i+j] = 0;
 			}
 		}
 		else{
 			double NLO_terms = pow(fp->pi, 2) / 3 - 4 + 3.0 / 2 * log(M2[i] / pow(fp->mu_F, 2));
-			for (int j = 0; j < 10; j++){
+			for (int j = 0; j < 5; j++){
 				int a = abs((fp->pid[j])) % 2;
 
 				double sigma_LO = LO_xsec(fp, M2[i], L_ID, a);
-				fp->Z1_xsec[10*i+j] = sigma_LO*(1 + fp->alpha_s[i] / fp->pi * C_F * NLO_terms);
+				fp->Z1_xsec[5*i+j] = sigma_LO*(1 + fp->alpha_s[i] / fp->pi * C_F * NLO_terms);
 			}
 		}
 	}
 }
-
-/*void LO_test(struct params* fp ) {
-	int a = fp->a;
-	const double* M2 = fp->M2;
-	int L_ID = fp->lepton_type;
-
-	for (int k = 0; k < fp->n; k++){
-
-		double beta = sqrt(1 + pow(fp->m_f[0], 4) / pow(M2[k], 2) + pow(fp->m_f[1], 4) / pow(M2[k], 2) - 2 * (pow(fp->m_f[0], 2) / M2[k] + pow(fp->m_f[1], 2) / M2[k] + (pow(fp->m_f[0], 2) * pow(fp->m_f[1], 2)) / pow(M2[k], 2)));
-		double frac = pow(fp->alpha, 2) * fp->pi * pow(beta, 3) / (9 * M2[k]);
-
-		for (int i = 0; i < 1; i++) {
-			for (int j = 0; j < 1; j++) {
-				double term1 = pow(fp->e_q[a], 2) * pow(fp->e_l[L_ID], 2) * fp->delta[i][j];
-				double term2 = fp->e_q[a] * fp->e_l[L_ID] * fp->delta[i][j] * (fp->L[a] + fp->R[a]) * (fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]) / (4 * fp->sin_thetaW * (1 - fp->sin_thetaW) * (1 - pow(fp->m_Z, 2) / M2[k]));
-				double term3 = (pow(fp->L[a], 2) + pow(fp->R[a], 2)) * pow((fp->sL[L_ID][i][j] + fp->sR[L_ID][i][j]), 2) / (32 * pow(fp->sin_thetaW, 2) * pow((1 - fp->sin_thetaW), 2) * pow((1 - pow(fp->m_Z, 2) / M2[k]), 2));
-
-				fp->LO_xsec[k] += frac * (term1 + term2 + term3);
-			}
-		}
-	}
-}*/
 
 /*void susy_cross(struct params* fp) {
 

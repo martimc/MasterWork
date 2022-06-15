@@ -78,8 +78,12 @@ def init_struct(mass, stau_mix):
     p.PDF_mem = 0
     return p
 
-def update_struct(struct, PDF_mem):
+def update_PDF_mem(struct, PDF_mem):
     struct.PDF_mem = PDF_mem
+
+def update_scale(struct, scale):
+    struct.mu_F = scale
+    struct.mu_R = scale
 
 def LO_integrand(xarr, n_dim=None, weight=None):
     M2_test = xarr[:,0]*xarr[:,1]*struct.S
@@ -93,25 +97,24 @@ def LO_integrand(xarr, n_dim=None, weight=None):
 
     q2 = tf.fill(tf.shape(xarr[:,0]), struct.mu_F**2)
     q2 = tf.cast(q2, tf.float64)
-    pid = tf.cast([-5,-4,-3,-2,-1,1,2,3,4,5], dtype=tf.int32)
-    pid_rev = tf.reverse(pid, [0])
+    pid = tf.cast([1,2,3,4,5], dtype=tf.int32)
+    pid_rev = -1*pid#tf.reverse(pid, [0])
 
     pid_array = pid.numpy()
     struct.pid = npct.as_ctypes(pid_array)
     imem = struct.PDF_mem
 
-
     pdfs_a = pdf.xfxQ2(pid, xarr[:,0], q2)
     pdfs_b = pdf.xfxQ2(pid_rev, xarr[:,1], q2)
 
-    LO_xsec = np.zeros(struct.n*10)
+    LO_xsec = np.zeros(struct.n*5)
     struct.LO_xsec = npct.as_ctypes(LO_xsec)
 
     c_lib.LO_cross(struct_point)
     vec_LO_xsec = tf.cast(LO_xsec, tf.float64)
-    tf_LO_xsec = tf.reshape(vec_LO_xsec, shape=(n, 10))
+    tf_LO_xsec = tf.reshape(vec_LO_xsec, shape=(n, 5))
 
-    xsec_res = tf.reduce_sum((tf_LO_xsec*pdfs_a*pdfs_b), axis = (len(pdfs_a.get_shape())-1))/(xarr[:,0]*xarr[:,1])
+    xsec_res = 2*tf.reduce_sum((tf_LO_xsec*pdfs_a*pdfs_b), axis = 1)/(xarr[:,0]*xarr[:,1])
 
     return xsec_res
 
@@ -129,9 +132,9 @@ def NLO_integrand(xarr, n_dim = None, weight = None):
 
     q2 = tf.fill(tf.shape(xarr[:,0]), struct.mu_F**2)
     q2 = tf.cast(q2, tf.float64)
-    pid = tf.cast([-5,-4,-3,-2,-1,1,2,3,4,5], dtype=tf.int32)
+    pid = tf.cast([1,2,3,4,5], dtype=tf.int32)
     pid_g = tf.cast([21], dtype=tf.int32)
-    pid_rev = tf.reverse(pid, [0])
+    pid_rev = -1*pid
 
     pid_array = pid.numpy()
     struct.pid = npct.as_ctypes(pid_array)
@@ -159,8 +162,8 @@ def NLO_integrand(xarr, n_dim = None, weight = None):
     struct_pointer = ctypes.byref(struct)
 
     struct.n = ctypes.c_int(n)
-    Z1_xsec = np.zeros(struct.n*10)
-    LO_xsec = np.zeros(struct.n*10)
+    Z1_xsec = np.zeros(struct.n*5)
+    LO_xsec = np.zeros(struct.n*5)
     struct.Z1_xsec = npct.as_ctypes(Z1_xsec)
     struct.LO_xsec = npct.as_ctypes(LO_xsec)
 
@@ -168,10 +171,10 @@ def NLO_integrand(xarr, n_dim = None, weight = None):
     c_lib.Z1_cross(struct_pointer)
 
     vec_LO_xsec = tf.cast(LO_xsec, tf.float64)
-    tf_LO_xsec = tf.reshape(vec_LO_xsec, shape=(n, 10))
+    tf_LO_xsec = tf.reshape(vec_LO_xsec, shape=(n, 5))
 
     vec_Z1_xsec = tf.cast(Z1_xsec, tf.float64)
-    tf_Z1_xsec = tf.reshape(vec_Z1_xsec, shape=(n, 10))
+    tf_Z1_xsec = tf.reshape(vec_Z1_xsec, shape=(n, 5))
 
     C_F = 4.0/3
     T_R = 1.0/2
@@ -184,9 +187,9 @@ def NLO_integrand(xarr, n_dim = None, weight = None):
 
     qg_terms = (ones / 2 - z + z2) * tf.math.log(tf.math.square(ones - z) / z) + ones / 4 + 3 * z / 2 - 7 * z2 / 4 + P_qg(z, T_R) / T_R * tf.math.log(M2 / (struct.mu_F**2))
 
-    xsec_Z1 = tf.reduce_sum((tf_Z1_xsec*pdfs_a*pdfs_b), axis = 1)/(xarr[:,1]*xarr[:,2])
-    qq_term = tf.reduce_sum((tf_LO_xsec*pdfs_a*pdfs_b), axis = 1)*alpha_s*C_F/(np.pi*xarr[:,1]*xarr[:,2])*(qq_term1+qq_term2+qq_term3)
-    qg_term = 2 * tf.reduce_sum((tf_LO_xsec*pdfs_a), axis = 1)*pdfs_g*alpha_s*T_R/(np.pi*xarr[:,1]*xarr[:,2])*qg_terms
+    xsec_Z1 = 2*tf.reduce_sum((tf_Z1_xsec*pdfs_a*pdfs_b), axis = 1)/(xarr[:,1]*xarr[:,2])
+    qq_term = 2*tf.reduce_sum((tf_LO_xsec*pdfs_a*pdfs_b), axis = 1)*alpha_s*C_F/(np.pi*xarr[:,1]*xarr[:,2])*(qq_term1+qq_term2+qq_term3)
+    qg_term = 2 * (tf.reduce_sum((tf_LO_xsec*pdfs_a), axis = 1)+tf.reduce_sum((tf_LO_xsec*pdfs_b), axis = 1))*pdfs_g*alpha_s*T_R/(np.pi*xarr[:,1]*xarr[:,2])*qg_terms
 
     NLO_res = xsec_Z1 + qq_term + qg_term
     return NLO_res
@@ -248,7 +251,7 @@ if __name__ == '__main__':
             for lines in data:
                 line = lines.split()
                 mass.append([float(line[2]),float(line[2])])
-                stau_mix.append(np.arccos(float(line[4])))
+                stau_mix.append(82/360*2*np.pi)#stau_mix.append(np.arccos(float(line[4])))
         except:
             pass
     elif out_sleptons == '2000015_-2000015':
@@ -256,7 +259,7 @@ if __name__ == '__main__':
             for lines in data:
                 line = lines.split()
                 mass.append([float(line[3]),float(line[3])])
-                stau_mix.append(np.arccos(float(line[4])))
+                stau_mix.append(82/360*2*np.pi)#np.arccos(float(line[4])))
         except:
             pass
 
@@ -267,22 +270,35 @@ if __name__ == '__main__':
     NLO_err = np.zeros(N)
     NLO_alphaerr = np.zeros(N)
 
+    LO_scale = np.zeros((N,2))
+    NLO_scale = np.zeros((N,2))
+
     pdf_mems = 100
-    time_arr = np.zeros(pdf_mems+4)
+    time_arr = np.zeros(pdf_mems+6)
 
     start_time = time.time()
 
     # start calculation for N masses
     for i in range(N):
         struct = init_struct(np.asarray(mass[i]), stau_mix[i])
-
+        scales = np.array([2*mass[i][0], 0.5*mass[i][0]])
         pdf = mkPDFs("PDF4LHC15_nlo_mc_pdfas", [0], dirname="/usr/local/share/LHAPDF/")
         pdf.trace()
         pdf.alphas_trace()
 
-        LO_ress, err_LO = integration(LO_integrand, 2, int(5e3), struct)
-        NLO_ress, err_NLO = integration(NLO_integrand, 3, int(5e3), struct)
+        LO_ress, err_LO = integration(LO_integrand, 2, int(1e4), struct)
+        NLO_ress, err_NLO = integration(NLO_integrand, 3, int(1e4), struct)
         time_arr[0] = time.time()-start_time
+
+        for k in range(2):
+            update_scale(struct, scales[k])
+            LO_scales, err_scale = integration(LO_integrand, 2, int(1e4), struct)
+            NLO_scales, err_scale = integration(NLO_integrand, 3, int(1e4), struct)
+            time_arr[k+1]
+
+            LO_scale[i,k] = LO_scales*0.38938e-3*1e15
+            NLO_scale[i,k] = NLO_scales*0.38938e-3*1e15
+        update_scale(struct, mass[i][0])
 
         NLO_errs = np.zeros(pdf_mems)
 
@@ -293,37 +309,37 @@ if __name__ == '__main__':
 
             #LO_errs[j-1], err_LO = integration(LO_integrand, 2, int(5e3), struct)
             NLO_errs[j-1], err_NLO = integration(NLO_integrand, 3, int(3e3), struct)
-            time_arr[j] = time.time()-start_time
+            time_arr[j+2] = time.time()-start_time
 
             if j%10==0:
                 print(i,j)
 
-        update_struct(struct, 101)
+        update_PDF_mem(struct, 101)
         pdf = mkPDFs("PDF4LHC15_nlo_mc_pdfas", [101], dirname="/usr/local/share/LHAPDF/")
         pdf.trace()
         pdf.alphas_trace()
         NLO_alphadown, err_alphadown = integration(NLO_integrand, 3, int(3e3), struct)
-        time_arr[101] = time.time()-start_time
+        time_arr[103] = time.time()-start_time
 
-        update_struct(struct, 102)
+        update_PDF_mem(struct, 102)
         pdf = mkPDFs("PDF4LHC15_nlo_mc_pdfas", [102], dirname="/usr/local/share/LHAPDF/")
         pdf.trace()
         pdf.alphas_trace()
         NLO_alphaup, err_alphaup = integration(NLO_integrand, 3, int(3e3), struct)
-        time_arr[102] = time.time()-start_time
+        time_arr[104] = time.time()-start_time
 
         NLO_ordered = np.sort(NLO_errs)
 
         LO_data[i] = LO_ress*0.38938e-3*1e15#np.sum(LO_ress)/100*0.38938e-3*1e15
         NLO_data[i] = NLO_ress*0.38938e-3*1e15#np.sum(NLO_ress)/100*0.38938e-3*1e15
-        NLO_err[i] = (NLO_ordered[83]-NLO_ordered[15])/2*0.38938e-3*1e15
-        NLO_alphaerr[i] = (NLO_alphaup-NLO_alphadown)/2*0.38938e-3*1e15
+        #NLO_err[i] = (NLO_ordered[83]-NLO_ordered[15])/2*0.38938e-3*1e15
+        #NLO_alphaerr[i] = (NLO_alphaup-NLO_alphadown)/2*0.38938e-3*1e15
         print("result of LO_xsec at mass: %.3e is: %.5e" % (mass[i][0], LO_data[i]))
         print("result of NLO_xsec test at mass: %.3e is: %.5e" % (mass[i][0], NLO_data[i]))
 
         print("precent done: ", (i+1)/N*100)
 
-    time_arr[103] = time.time()-start_time
+    time_arr[105] = time.time()-start_time
 
     with open('time_multipdf.dat', 'w') as tfile:
         tfile.write("#_PDFs      time_elapsed\n")
@@ -340,3 +356,9 @@ if __name__ == '__main__':
             file.write("mass1   mass2    LO_data    NLO_data\n")
             for i in range(N):
                 file.write(("%.5e" + " " + "%.5e" + " " + "%.5e" + " " + "%.5e"+ '\n') % (mass[i][0], mass[i][1], LO_data[i], NLO_data[i]))
+
+    print(LO_scale[i,0])
+    with open('scale_res.dat', 'w') as sfile:
+        sfile.write("masses     LO_data     LO_up     LO_down     NLO_data     NLO_up     NLO_down\n")
+        for i in range(N):
+            sfile.write(("%.5e" + " " + "%.5e" + " " + "%.5e" + " " + "%.5e" + " " + "%.5e" + " " + "%.5e" + " " + "%.5e" + '\n') % (mass[i][0], LO_data[i], LO_scale[i,0], LO_scale[i,1],  NLO_data[i], NLO_scale[i,0], NLO_scale[i,1]))
